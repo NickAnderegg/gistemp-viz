@@ -1,0 +1,523 @@
+<meta charset="utf-8">
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/0.97.6/css/materialize.min.css">
+    <style>
+
+    body {
+        background-color: #333;
+        height: 100%;
+        padding: 0;
+        font-family: Helvetica, Arial, sans-serif;
+    }
+
+    h1 {
+        font-weight: bold;
+        font-size: 64px;
+        text-align: center;
+    }
+
+    h2 {
+        font-size: 24px;
+    }
+
+    #viz {
+        position: fixed;
+        top: 0;
+        left: 0;
+        background-color: #333;
+        width: 50%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+    }
+
+    #desc-box {
+        position: fixed;
+        top: 33vh;
+        right: 0;
+        background-color: #fff;
+        width: 50%;
+        height: 20vh;
+        color: #333;
+    }
+
+    #desc {
+        position: relative;
+        top: 0;
+        margin: 0;
+        padding: 0 2%;
+        height: 100%;
+    }
+
+    #year-label {
+        color: #fff;
+        width: 100%;
+        float: left;
+        position: absolute;
+        top: 10px;
+        left: 30vw;
+    }
+
+    #year-value {
+        font-weight: bold;
+    }
+
+    #display-select {
+        text-align: center;
+    }
+
+    .inline-head {
+        font-size: 24px;
+        font-weight: bold;
+        vertical-align: center;
+        margin: 0 20px;
+    }
+
+    hr {
+        border: 0;
+        height: 1px;
+        background: #333;
+        background-image: linear-gradient(to right, #ccc, #333, #ccc);
+        margin: 15px;
+    }
+    #info-box {
+        position: fixed;
+        margin: 0;
+        padding: 0 2%;
+        left: 100vw;
+        top: 20vh;
+        color: #333;
+        right: 0;
+        background-color: #fff;
+        width: 50%;
+        height: 80vh;
+    }
+
+    #graphic {
+        position: absolute;
+        bottom: 0;
+        /*transform: translateY(-50%);*/
+        margin: auto;
+    }
+
+    #year-graphic {
+        color: #fff;
+        position: relative;
+        padding: 2%;
+    }
+
+    .frame {
+      fill: none;
+      stroke: #fff;
+    }
+
+    .axis text {
+      font: 10px sans-serif;
+      font-weight: 900;
+      /*stroke: #000;*/
+      /*stroke-width: 1px;*/
+      fill: #fff;
+    }
+
+    .axis-label text {
+        font: 16px sans-serif;
+        stroke: none;
+        fill: #fff;
+    }
+
+    .axis circle {
+      fill: none;
+      stroke: #777;
+      stroke-dasharray: 2,4;
+    }
+
+    .axis line {
+        fill: none;
+        stroke: #777;
+        stroke-dasharray: 4,2;
+    }
+
+    .axis :last-of-type circle {
+      stroke: #fff;
+      stroke-dasharray: none;
+    }
+
+    .line {
+      fill: none;
+      /*stroke: red;*/
+      stroke-width: 1.5px;
+    }
+
+    </style>
+    <script src="https://d3js.org/d3.v3.js"></script>
+    <script src="cleandata.js"></script>
+    <script src="https://code.jquery.com/jquery-3.0.0.min.js"></script>
+</head>
+<body>
+    <div id="viz">
+        <div id="year-label"><h2>Year: <span id="year-value">2015</span></h2></div>
+        <div id="graphic"></div>
+    </div>
+
+    <div id="desc-box">
+        <div id="desc">
+            <h1>Temperature History</h1>
+        </div>
+    </div>
+
+    <div id="info-box">
+        <hr />
+        <div id="display-select">
+            <span class="inline-head">Display:</span>
+            <a class="waves-effect waves-light btn" id="disp-stack">Whole Stack</a>
+            <a class="waves-effect waves-light btn" id="disp-layer">Current Layer</a>
+        </div>
+        <hr />
+        <div>
+            <h2>Instructions</h2>
+            <p>
+                Scroll down to view previous years, scroll up to re-add more recent
+                years to the stack.
+            </p>
+            <p>
+                <em>Display settings:</em> If you choose the "Whole Stack" display option,
+                you will be able to view the data from the currently selected year, as well as
+                previous years' data displayed underneath. If you choose the "Current Layer" display
+                option, only one year's data will be displayed at a time. NOTE: This has only been tested
+                in Chrome and Firefox. This performs best in Google Chrome.
+            </p>
+        </div>
+        <div>
+            <h2>About this Data</h2>
+            <p>
+                This visualization uses the <em><a href="http://data.giss.nasa.gov/gistemp/">GISTEMP</a> Combined Land-Surface Air
+                and Sea-Surface Water Temperature Anomalies (Land-Ocean Temperature Index, LOTI)</em> dataset.
+                For each year, a circle is drawn on the radar plot to represent the average
+                temperature anomaly (deviating from the 1951-1980 mean); for each month in a year,
+                a partial arc fills the area between the year's baseline and the month's measured value.
+                The outermost axis represents a +1º global temperature anomaly, while the centerpoint
+                represents a -1º temperature anomaly.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // var data = d3.range(0, 2 * Math.PI, .01).map(function(t) {
+        // return [t, Math.sin(2 * t) * Math.cos(2 * t)];
+        // });
+
+        var short_months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec"
+        ]
+
+        var data = new Array();
+        for(var i = 0; i < temp_data.length; i++) {
+            var year_data = new Array();
+            var year = 0;
+            for(var j = 0; j < 12; j++) {
+                if(j == 0) {
+                    year_data[0] = temp_data[i]["Year"];
+                    year_data[1] = temp_data[i]["J-D"];
+                }
+
+                if(temp_data[i][short_months[j]] != null) {
+                    year_data[year_data.length] = [(-j*30) * (Math.PI/180), temp_data[i][short_months[j]] * 0.01]
+                }
+            }
+
+            data[data.length] = year_data;
+        }
+
+        var width = 600,
+        height = 600,
+        radius = Math.min(width-100, height-100) / 2 - 30;
+
+        var color = d3.scale.linear().domain([-1, 0, 1]).range(["blue", "white", "red"]);
+
+        var r = d3.scale.linear()
+        .domain([-1, 1])
+        .range([0, radius]);
+
+        var line = d3.svg.line.radial()
+        .radius(function(d) { return r(d[1]); })
+        .angle(function(d) { return -d[0] + Math.PI / 2; });
+
+        var svg = d3.select("#graphic").append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g")
+        .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+        var ga = svg.append("g")
+        .attr("class", "a axis axis-label")
+        .selectAll("g")
+        .data(d3.range(0, 12, 1))
+        .enter().append("g")
+        .attr("transform", function(d) { return "rotate(" + (d*30-15) + ")"; });
+
+        ga.append("line")
+        .attr("x2", radius);
+
+        var gt = svg.append("g")
+        .attr("class", "a axis axis-label")
+        .selectAll("g")
+        .data(d3.range(0, 12, 1))
+        .enter().append("g")
+        .attr("transform", function(d) { return "rotate(" + (d*30) + ")"; });
+
+        var months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December"
+        ]
+        gt.append("text")
+        .attr("x", radius + 6)
+        .attr("dy", ".35em")
+        .style("text-anchor", function(d) { return d < 9 && d > 3 ? "end" : null; })
+        .attr("transform", function(d) { return d < 9 && d > 3 ? "rotate(180 " + (radius + 6) + ",0)" : null; })
+        .text(function(d) { return months[d]; });
+
+        var arc = d3.svg.arc();
+        var year_groups = new Array();
+
+        for(var i = 0; i < data.length; i++) {
+
+            var year_radius = (radius/2) + data[i][1];
+            svg.append("circle")
+                .attr("r", year_radius)
+                .attr("class", "year-" + data[i][0])
+                .style("fill", "none")
+                .style("stroke", function(d) { return color(data[i][1]); })
+                .style("stroke-width", "0.50px");
+
+            for(var j = 2; j < data[i].length; j++){
+                // svg.append("circle").attr("x", data[i][0]).attr("y", data[i][1]).attr("r", 5);
+                // if(j < data[i].length-1) {
+                //     svg.append("path")
+                //         .datum([data[i][j], data[i][j+1]])
+                //         .attr("class", "line year-" + data[i][0])
+                //         .attr("d", line)
+                //         .style("stroke", function(d) { return color(data[i][j][1]); });
+                // } else {
+                //     svg.append("path")
+                //         .datum([data[i][j], data[i+1][2]])
+                //         .attr("class", "line year-" + data[i][0])
+                //         .attr("d", line)
+                //         .style("stroke", function(d) { return color(data[i][j][1]); });
+                // }
+
+                var inner_radius = Math.min(year_radius, (radius/2) + ((radius/2) * data[i][j][1]))
+                var outer_radius = Math.max(year_radius, (radius/2) + ((radius/2) * data[i][j][1]))
+
+                svg.append("path")
+                    .datum({
+                        innerRadius: inner_radius,
+                        outerRadius: outer_radius,
+                        startAngle: (30 * (j-2) + 75) * Math.PI/180,
+                        endAngle: (30* (j-2) + 105) * Math.PI/180
+                    })
+                    .style("fill", function(d) { return color(data[i][j][1]); })
+                    .attr("class", "temp-block year-" + data[i][0])
+                    .attr("d", arc);
+            }
+
+            $(".year-" + data[i][0]).hide();
+            year_groups[year_groups.length] = "" + data[i][0];
+        }
+        console.log(year_groups)
+
+        svg.append("path")
+            .datum({
+                innerRadius: 0,
+                outerRadius: radius+20,
+                startAngle: (15-7) * Math.PI/180,
+                endAngle: (15+7) * Math.PI/180
+            })
+            .style("fill", "#333")
+            .style("opacity", .50)
+            .attr("d", arc);
+
+        var gr = svg.append("g")
+        .attr("class", "r axis")
+        .selectAll("g")
+        .data(r.ticks(5).slice(1))
+        .enter().append("g");
+
+        gr.append("circle")
+        .attr("r", r);
+
+        gr.append("text")
+        .attr("y", function(d) { return -r(d) - 4; })
+        .attr("transform", "rotate(15)")
+        .style("text-anchor", "middle")
+        .text(function(d) {
+            if(d <= 0) {
+                return d + "º";
+            } else {
+                return "+" + d + "º";
+            }
+        });
+
+        $("#year-value").css("font-size", "72px");
+
+        var show_count = 0;
+        var tog = function(i, year_groups) {
+            if(i - 5 >= 0) {
+                $(".year-" + year_groups[i-5]).hide();
+            }
+
+            $(".year-" + year_groups[i]).show();
+            $("#year-value").text((year_groups[i]-5) + " to " + year_groups[i]);
+
+            if(i == year_groups.length - 1) {
+                setTimeout(function(year_groups) { showall(year_groups) }, 1000, year_groups);
+            }
+        }
+
+        for(var i = 0; i < year_groups.length; i++) {
+            setTimeout(function(i, year_groups) { tog(i, year_groups) }, 100*i, i, year_groups);
+        }
+
+        // disp_interval = setInterval(function(year_groups) { tog(year_groups) }, 50, year_groups);
+
+        // while(show_count < year_groups.length) {}
+        // clearInterval(disp_interval)
+
+        var showall = function(year_groups) {
+            show_count = year_groups.length - 1;
+            var inter = setInterval(function(year_groups) {
+                $(".year-" + year_groups[show_count]).show();
+                $("#year-value").text((year_groups[show_count]) + " to 2016");
+                if(show_count > 0) {
+                    show_count--;
+                } else {
+                    $("#year-value").animate({fontSize: "48px"});
+                    clearInterval(inter);
+                    interactivity();
+                    return;
+                }
+            }, 25, year_groups);
+            return;
+        }
+
+        var scroll = 0;
+        var whole_stack = true;
+        var interactivity = function() {
+            $("#year-value").hide(function() {
+                $("#year-value").text("2016");
+                $("#year-value").fadeIn();
+            });
+            $("#desc-box").animate({top: 0}, 1000, function() {
+                $("#info-box").animate({left: "50%"}, 1000, function() {
+                    $("#display-select").slideDown();
+                });
+            });
+
+            $("body").css("height", (75 * year_groups.length) + $(window).height());
+
+            $("#disp-stack").click(function() {
+                whole_stack = true;
+                layerController(true);
+            });
+
+            $("#disp-layer").click(function() {
+                whole_stack = false;
+                layerController(true);
+            });
+
+            $(window).scrollTop(scroll);
+            $(window).scroll(function() {
+                layerController();
+            });
+        }
+
+        var years = year_groups.length - 1;
+        var layerController = function(disp_changed) {
+            var disp_changed = typeof disp_changed !== 'undefined' ? disp_changed : false;
+            console.log(disp_changed);
+            var top = $(window).scrollTop();
+
+            var prev_layer = Math.floor(scroll / 75);
+            var curr_layer = Math.floor(top / 75);
+
+            if(disp_changed) {
+                if(!whole_stack) {
+                    curr_layer = Math.max(years-curr_layer, -1);
+                    for(var i = 0; i <= years; i++) {
+                        if(i != curr_layer) {
+                            $(".year-" + year_groups[i]).hide();
+                        }
+                    }
+                } else {
+                    curr_layer = Math.min(years-curr_layer, years);
+                    for(var i = 0; i <= curr_layer; i++) {
+                        $(".year-" + year_groups[i]).show();
+                    }
+                }
+
+            } else if(prev_layer != curr_layer) {
+                if(curr_layer > prev_layer) {
+                    curr_layer = Math.max(years-curr_layer, 0);
+                    for(var i = years; i > curr_layer; i--) {
+                        $(".year-" + year_groups[i]).hide();
+                        console.log("Hide year: " + year_groups[i])
+                    }
+
+                    if(!whole_stack) {
+                        $(".year-" + year_groups[curr_layer]).show();
+                        for(var i = curr_layer-1; i >= 0; i--) {
+                            $(".year-" + year_groups[i]).hide();
+                        }
+                    }
+
+                    $("#year-value").text(year_groups[curr_layer]);
+                } else {
+                    curr_layer = Math.min(years-curr_layer, years);
+                    if(whole_stack) {
+                        for(var i = 0; i <= curr_layer; i++) {
+                            $(".year-" + year_groups[i]).show();
+                            console.log("Show year: " + year_groups[i])
+                        }
+                    } else {
+                        for(var i = 0; i < curr_layer; i++) {
+                            $(".year-" + year_groups[i]).hide();
+                        }
+                    }
+                    $(".year-" + year_groups[curr_layer]).show();
+
+                    $("#year-value").text(year_groups[curr_layer]);
+                }
+            }
+
+            curr_layer = Math.max(years - Math.floor(top / 75), 0);
+            $("#year-value").text(year_groups[curr_layer]);
+
+            scroll = top;
+        }
+
+        // svg.append("path")
+        //     .datum(data)
+        //     .attr("class", "line")
+        //     .attr("d", line);
+    </script>
+</body>
